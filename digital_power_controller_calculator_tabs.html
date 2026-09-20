@@ -1,0 +1,299 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Digital Power PID / 2P2Z Calculator</title>
+<style>
+:root{
+  --bg:#0f131a; --panel:#171d27; --panel2:#1d2531; --line:#2c3747;
+  --text:#e8edf4; --muted:#9eabbc; --accent:#4ea1ff; --good:#57d38c;
+  --warn:#ffca5c; --bad:#ff6b6b; --plant:#78b7ff; --ctrl:#ffbf69; --loop:#77dd77;
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:Inter,Segoe UI,Arial,sans-serif}
+header{padding:20px 26px;border-bottom:1px solid var(--line);background:#111722}
+h1{font-size:22px;margin:0 0 6px}
+header p{margin:0;color:var(--muted);font-size:13px}
+main{max-width:1500px;margin:auto;padding:20px}
+.card{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.card h2{font-size:16px;margin:0 0 12px}
+.card h3{font-size:14px;margin:14px 0 8px;color:#dce6f2}
+.inputs{display:grid;grid-template-columns:repeat(4,minmax(120px,1fr));gap:10px}
+.field label{display:block;color:var(--muted);font-size:12px;margin-bottom:5px}
+.field input,.field select{width:100%;background:#0f141c;color:var(--text);border:1px solid var(--line);border-radius:6px;padding:8px 9px;font-size:13px}
+.metrics{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.metric{background:var(--panel2);border:1px solid #2c394a;border-radius:7px;padding:9px}
+.metric .k{font-size:11px;color:var(--muted)} .metric .v{font-size:15px;margin-top:3px;font-family:Consolas,monospace}
+button{background:var(--accent);color:#fff;border:0;border-radius:7px;padding:9px 14px;font-weight:600;cursor:pointer}
+button.secondary{background:#273243}
+.tabs{display:flex;gap:8px;margin:14px 0}
+.tabbtn{background:#202938;color:#c8d3e0;border:1px solid var(--line);padding:10px 18px;border-radius:8px 8px 0 0}
+.tabbtn.active{background:var(--accent);color:white;border-color:var(--accent)}
+.page{display:none}.page.active{display:block}
+.twoCol{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th,td{border-bottom:1px solid var(--line);padding:7px;text-align:right}
+th:first-child,td:first-child{text-align:left}
+code,pre{font-family:Consolas,Menlo,monospace}
+pre{background:#0d1219;border:1px solid var(--line);padding:12px;border-radius:7px;overflow:auto;font-size:12px;white-space:pre-wrap}
+.eq{font-family:Consolas,monospace;background:#101722;border:1px solid var(--line);padding:8px;border-radius:6px;font-size:12px;overflow:auto}
+canvas{width:100%;height:330px;background:#0c1118;border:1px solid var(--line);border-radius:7px;margin-top:8px}
+.legend{display:flex;gap:16px;font-size:12px;color:var(--muted);margin-bottom:8px}
+.sw{display:inline-block;width:18px;height:3px;vertical-align:middle;margin-right:5px}
+.warn{padding:10px 12px;border-radius:7px;background:#2a2414;color:#ffd978;border:1px solid #56491f;font-size:12px;display:none}
+.small{font-size:12px;color:var(--muted);line-height:1.55}
+.sharedBadge{display:inline-block;background:#203044;color:#9dc8ff;border:1px solid #34516f;border-radius:999px;padding:2px 8px;font-size:11px;margin-left:8px}
+@media(max-width:1000px){.inputs{grid-template-columns:repeat(2,1fr)}.twoCol{grid-template-columns:1fr}.metrics{grid-template-columns:repeat(2,1fr)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>Digital Power Controller Calculator</h1>
+  <p>共用 Power Stage / Control Target 參數；PID 與 2P2Z 分成獨立子頁面，各自顯示係數與 Bode 圖。</p>
+</header>
+
+<main>
+  <section class="card">
+    <h2>共用輸入參數 <span class="sharedBadge">PID / 2P2Z 共用</span></h2>
+    <div class="inputs">
+      <div class="field"><label>Vin (V)</label><input id="vin" type="number" step="any" value="60"></div>
+      <div class="field"><label>Vout / Vref (V)</label><input id="vout" type="number" step="any" value="48"></div>
+      <div class="field"><label>Pout (W)</label><input id="pout" type="number" step="any" value="1500"></div>
+      <div class="field"><label>Fsw (kHz)</label><input id="fsw" type="number" step="any" value="250"></div>
+      <div class="field"><label>L (µH)</label><input id="L" type="number" step="any" value="10"></div>
+      <div class="field"><label>L DCR (mΩ)</label><input id="rL" type="number" step="any" value="2.6"></div>
+      <div class="field"><label>Cout (µF)</label><input id="C" type="number" step="any" value="1000"></div>
+      <div class="field"><label>C ESR (mΩ)</label><input id="rC" type="number" step="any" value="3"></div>
+      <div class="field"><label>Target crossover fc (Hz)</label><input id="fc" type="number" step="any" value="3000"></div>
+      <div class="field"><label>Target phase margin (°)</label><input id="pm" type="number" step="any" value="60"></div>
+      <div class="field"><label>Error scaling</label>
+        <select id="errScale">
+          <option value="raw">e = Vref - Vout (Volt)</option>
+          <option value="norm">e = (Vref - Vout) / Vref</option>
+        </select>
+      </div>
+      <div class="field"><label>Sampling period</label><input id="tsDisplay" disabled></div>
+    </div>
+    <div style="display:flex;gap:10px;margin-top:12px">
+      <button id="calc">重新計算</button>
+      <button class="secondary" id="reset">恢復預設</button>
+    </div>
+    <div id="warning" class="warn" style="margin-top:12px"></div>
+
+    <h3>Plant summary</h3>
+    <div id="plantMetrics" class="metrics"></div>
+    <div class="eq" style="margin-top:10px">Gvd(s) = Vin·R·(1+s·rC·C) / [L·C·(R+rC)s² + (L+rL·C(R+rC)+R·rC·C)s + (R+rL)]</div>
+  </section>
+
+  <div class="tabs">
+    <button class="tabbtn active" data-page="pidPage">PID</button>
+    <button class="tabbtn" data-page="p2zPage">2P2Z</button>
+  </div>
+
+  <section id="pidPage" class="page active">
+    <div class="twoCol">
+      <div class="card">
+        <h2>PID 設計</h2>
+        <div class="inputs">
+          <div class="field"><label>PID zero mode</label>
+            <select id="zModePid">
+              <option value="auto">Auto from fc + PM</option>
+              <option value="manual">Manual equivalent zero</option>
+            </select>
+          </div>
+          <div class="field"><label>PID equivalent fz (Hz)</label><input id="fzPidManual" type="number" step="any" value="1040"></div>
+        </div>
+        <p class="small">離散實作：P + backward-Euler I + backward-difference D。</p>
+        <div id="resPid" class="metrics"></div>
+        <h3>PID constants</h3>
+        <table>
+          <tr><th>Kp</th><td id="kp"></td></tr>
+          <tr><th>Ki (1/s)</th><td id="ki"></td></tr>
+          <tr><th>Kd (s)</th><td id="kd"></td></tr>
+        </table>
+        <div class="eq" style="margin-top:10px">u[n] = Kp·e[n] + I[n] + Kd·(e[n]−e[n−1])/Ts<br>I[n]=I[n−1]+Ki·Ts·e[n]</div>
+        <h3>C/C++ constants</h3>
+        <pre id="codePid"></pre>
+      </div>
+      <div class="card">
+        <h2>PID Bode</h2>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--plant)"></i>Plant</span>
+          <span><i class="sw" style="background:var(--ctrl)"></i>PID</span>
+          <span><i class="sw" style="background:var(--loop)"></i>Open loop</span>
+        </div>
+        <canvas id="pidMag"></canvas>
+        <canvas id="pidPhase"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section id="p2zPage" class="page">
+    <div class="twoCol">
+      <div class="card">
+        <h2>2P2Z 設計</h2>
+        <div class="inputs">
+          <div class="field"><label>High-frequency pole fp (Hz)</label><input id="fp2p2z" type="number" step="any" value="20000"></div>
+          <div class="field"><label>Zero mode</label>
+            <select id="zMode2">
+              <option value="auto">Auto from fc + PM</option>
+              <option value="manual">Manual equal zero</option>
+            </select>
+          </div>
+          <div class="field"><label>fz1 = fz2 (Hz)</label><input id="fz2manual" type="number" step="any" value="800"></div>
+        </div>
+        <p class="small">Analog Type-III：Gc(s)=K(1+s/ωz)²/[s(1+s/ωp)]，再以 Tustin 轉成離散 2P2Z。</p>
+        <div id="res2" class="metrics"></div>
+        <h3>Discrete coefficients</h3>
+        <table>
+          <tr><th>A1</th><td id="a1"></td><th>A2</th><td id="a2"></td></tr>
+          <tr><th>B0</th><td id="b0"></td><th>B1</th><td id="b1"></td></tr>
+          <tr><th>B2</th><td id="b2"></td><th>K</th><td id="k2"></td></tr>
+        </table>
+        <div class="eq" style="margin-top:10px">u[n] = A1·u[n−1] + A2·u[n−2] + B0·e[n] + B1·e[n−1] + B2·e[n−2]</div>
+        <h3>C/C++ constants</h3>
+        <pre id="code2"></pre>
+      </div>
+      <div class="card">
+        <h2>2P2Z Bode</h2>
+        <div class="legend">
+          <span><i class="sw" style="background:var(--plant)"></i>Plant</span>
+          <span><i class="sw" style="background:var(--ctrl)"></i>2P2Z</span>
+          <span><i class="sw" style="background:var(--loop)"></i>Open loop</span>
+        </div>
+        <canvas id="p2zMag"></canvas>
+        <canvas id="p2zPhase"></canvas>
+      </div>
+    </div>
+  </section>
+
+  <section class="card">
+    <h2>模型假設</h2>
+    <p class="small">
+      使用 CCM Buck 平均小訊號模型，納入 L DCR 與 Cout ESR。未納入 PWM/ZOH delay、MOSFET/driver propagation delay、磁芯非線性、ADC/PWM 量化等。
+      建議將計算結果作為 QSPICE 與 firmware 的第一版補償器，再以 AC injection 與 load-step 微調。
+    </p>
+  </section>
+</main>
+
+<script>
+class Cx{
+  constructor(re,im=0){this.re=re;this.im=im}
+  add(o){return new Cx(this.re+o.re,this.im+o.im)}
+  sub(o){return new Cx(this.re-o.re,this.im-o.im)}
+  mul(o){return new Cx(this.re*o.re-this.im*o.im,this.re*o.im+this.im*o.re)}
+  div(o){const d=o.re*o.re+o.im*o.im;return new Cx((this.re*o.re+this.im*o.im)/d,(this.im*o.re-this.re*o.im)/d)}
+  scale(k){return new Cx(this.re*k,this.im*k)}
+  abs(){return Math.hypot(this.re,this.im)}
+  arg(){return Math.atan2(this.im,this.re)}
+}
+const $=id=>document.getElementById(id), n=id=>Number($(id).value);
+function fmt(x,d=6){if(!Number.isFinite(x))return "—";const a=Math.abs(x);if(a!==0&&(a>=1e5||a<1e-4))return x.toExponential(6);return x.toFixed(d).replace(/\.?0+$/,"")}
+function metric(k,v){return `<div class="metric"><div class="k">${k}</div><div class="v">${v}</div></div>`}
+
+function params(){
+  const p={Vin:n("vin"),Vout:n("vout"),Pout:n("pout"),fs:n("fsw")*1e3,L:n("L")*1e-6,rL:n("rL")*1e-3,C:n("C")*1e-6,rC:n("rC")*1e-3,fc:n("fc"),PM:n("pm"),fp2:n("fp2p2z"),errNorm:$("errScale").value==="norm"};
+  p.R=p.Vout*p.Vout/p.Pout;p.Ts=1/p.fs;return p;
+}
+function plantResp(p,f){
+  const s=new Cx(0,2*Math.PI*f), one=new Cx(1,0);
+  const num=one.add(s.scale(p.rC*p.C)).scale(p.Vin*p.R);
+  const a2=p.L*p.C*(p.R+p.rC);
+  const a1=p.L+p.rL*p.C*(p.R+p.rC)+p.R*p.rC*p.C;
+  const a0=p.R+p.rL;
+  return num.div(s.mul(s).scale(a2).add(s.scale(a1)).add(new Cx(a0,0)));
+}
+function zInv(p,f){const th=2*Math.PI*f*p.Ts;return new Cx(Math.cos(th),-Math.sin(th))}
+
+function design2p2z(p){
+  const Gp=plantResp(p,p.fc), phiTarget=(-180+p.PM)*Math.PI/180, phiNeed=phiTarget-Gp.arg(), wp=2*Math.PI*p.fp2;
+  let fz=n("fz2manual"), limited=false;
+  if($("zMode2").value==="auto"){
+    let th=(phiNeed+Math.PI/2+Math.atan(p.fc/p.fp2))/2, lo=2*Math.PI/180, hi=88*Math.PI/180;
+    if(th<lo){th=lo;limited=true} if(th>hi){th=hi;limited=true}
+    fz=p.fc/Math.tan(th);
+  }
+  const wz=2*Math.PI*fz,wc=2*Math.PI*p.fc,s=new Cx(0,wc);
+  const shape=(new Cx(1,0).add(s.scale(1/wz))).mul(new Cx(1,0).add(s.scale(1/wz))).div(s.mul(new Cx(1,0).add(s.scale(1/wp))));
+  const Kraw=1/(Gp.abs()*shape.abs()), K=Kraw*(p.errNorm?p.Vout:1);
+  const k=2/p.Ts, az=1+k/wz, bz=1-k/wz;
+  const n0=K*az*az,n1=K*2*az*bz,n2=K*bz*bz,d0=k+k*k/wp,d1=-2*k*k/wp,d2=-k+k*k/wp;
+  const A1=-d1/d0,A2=-d2/d0,B0=n0/d0,B1=n1/d0,B2=n2/d0;
+  const controller=f=>{const q=zInv(p,f),q2=q.mul(q);return new Cx(B0,0).add(q.scale(B1)).add(q2.scale(B2)).div(new Cx(1,0).sub(q.scale(A1)).sub(q2.scale(A2)))};
+  return {fz,fp:p.fp2,K,A1,A2,B0,B1,B2,controller,limited};
+}
+function pidUnitResp(p,f,fz){
+  const wz=2*Math.PI*fz,Kp=2/wz,Ki=1,Kd=1/(wz*wz),q=zInv(p,f),omq=new Cx(1,0).sub(q);
+  return new Cx(Kp,0).add(new Cx(Ki*p.Ts,0).div(omq)).add(omq.scale(Kd/p.Ts));
+}
+function designPid(p){
+  const Gp=plantResp(p,p.fc),phiTarget=(-180+p.PM)*Math.PI/180,phiNeed=phiTarget-Gp.arg();
+  let fz=n("fzPidManual"),limited=false;
+  if($("zModePid").value==="auto"){
+    let lo=p.fc/1000,hi=p.fc*1000;
+    for(let i=0;i<90;i++){const mid=Math.sqrt(lo*hi),ph=pidUnitResp(p,p.fc,mid).arg();if(ph>phiNeed)lo=mid;else hi=mid}
+    fz=Math.sqrt(lo*hi); if(Math.abs(pidUnitResp(p,p.fc,fz).arg()-phiNeed)>3*Math.PI/180)limited=true;
+  }
+  const unit=pidUnitResp(p,p.fc,fz),Kraw=1/(Gp.abs()*unit.abs()),K=Kraw*(p.errNorm?p.Vout:1),wz=2*Math.PI*fz;
+  const Kp=2*K/wz,Ki=K,Kd=K/(wz*wz);
+  const controller=f=>{const q=zInv(p,f),omq=new Cx(1,0).sub(q);return new Cx(Kp,0).add(new Cx(Ki*p.Ts,0).div(omq)).add(omq.scale(Kd/p.Ts))};
+  return {fz,K,Kp,Ki,Kd,controller,limited};
+}
+function unwrap(a){const o=[a[0]];for(let i=1;i<a.length;i++){let v=a[i],p=o[i-1];while(v-p>Math.PI)v-=2*Math.PI;while(v-p<-Math.PI)v+=2*Math.PI;o.push(v)}return o}
+function makeSweep(p,d){
+  const fLC=1/(2*Math.PI*Math.sqrt(p.L*p.C)),fESR=1/(2*Math.PI*p.rC*p.C);
+  let fmin=Math.max(1,Math.min(fLC,p.fc)/100),fmax=Math.min(p.fs*.45,Math.max(p.fc*30,fESR*2,d.fp?d.fp*5:p.fc*50));
+  if(fmax<fmin*30)fmax=Math.min(p.fs*.45,fmin*1000);
+  const fs=[],pmag=[],cmag=[],lmag=[],pph=[],cph=[],lph=[],N=520,sensor=p.errNorm?1/p.Vout:1;
+  for(let i=0;i<N;i++){const x=i/(N-1),f=fmin*Math.pow(fmax/fmin,x),P=plantResp(p,f),C=d.controller(f).scale(sensor),L=P.mul(C);fs.push(f);pmag.push(20*Math.log10(P.abs()));cmag.push(20*Math.log10(C.abs()));lmag.push(20*Math.log10(L.abs()));pph.push(P.arg());cph.push(C.arg());lph.push(L.arg())}
+  return {fs,pmag,cmag,lmag,pph:unwrap(pph),cph:unwrap(cph),lph:unwrap(lph),fmin,fmax};
+}
+function crossover(s,p){
+  const c=[];for(let i=0;i<s.fs.length-1;i++){const a=s.lmag[i],b=s.lmag[i+1];if((a>=0&&b<=0)||(a<=0&&b>=0)){const t=(0-a)/(b-a),xf=Math.log10(s.fs[i])+(Math.log10(s.fs[i+1])-Math.log10(s.fs[i]))*t,f=Math.pow(10,xf),ph=s.lph[i]+(s.lph[i+1]-s.lph[i])*t;c.push({f,pm:180+ph*180/Math.PI})}}
+  if(!c.length)return {f:NaN,pm:NaN};c.sort((a,b)=>Math.abs(Math.log(a.f/p.fc))-Math.abs(Math.log(b.f/p.fc)));return c[0];
+}
+function draw(canvas,s,kind,cross){
+  const dpr=devicePixelRatio||1,W=canvas.clientWidth,H=330;canvas.width=W*dpr;canvas.height=H*dpr;const ctx=canvas.getContext("2d");ctx.scale(dpr,dpr);ctx.clearRect(0,0,W,H);
+  const m={l:62,r:18,t:18,b:42},pw=W-m.l-m.r,ph=H-m.t-m.b;
+  const arrs=kind==="mag"?[s.pmag,s.cmag,s.lmag]:[s.pph.map(x=>x*180/Math.PI),s.cph.map(x=>x*180/Math.PI),s.lph.map(x=>x*180/Math.PI)];
+  let ymin=Math.min(...arrs.flat()),ymax=Math.max(...arrs.flat());
+  if(kind==="mag"){ymin=Math.floor((ymin-10)/20)*20;ymax=Math.ceil((ymax+10)/20)*20;if(ymin>-40)ymin=-40;if(ymax<40)ymax=40}else{ymin=Math.floor((ymin-15)/45)*45;ymax=Math.ceil((ymax+15)/45)*45;if(ymin>-270)ymin=-270;if(ymax<90)ymax=90}
+  const lx0=Math.log10(s.fmin),lx1=Math.log10(s.fmax),X=f=>m.l+(Math.log10(f)-lx0)/(lx1-lx0)*pw,Y=v=>m.t+(ymax-v)/(ymax-ymin)*ph;
+  ctx.font="11px Segoe UI";ctx.strokeStyle="#253142";ctx.fillStyle="#9eabbc";ctx.lineWidth=1;
+  for(let d=Math.floor(lx0);d<=Math.ceil(lx1);d++){[1,2,5].forEach(mult=>{const f=mult*Math.pow(10,d);if(f<s.fmin||f>s.fmax)return;const x=X(f);ctx.beginPath();ctx.moveTo(x,m.t);ctx.lineTo(x,m.t+ph);ctx.stroke();if(mult===1)ctx.fillText(f>=1000?`${fmt(f/1000,2)}k`:`${fmt(f,0)}`,x-10,H-18)})}
+  const step=kind==="mag"?20:45;for(let v=Math.ceil(ymin/step)*step;v<=ymax;v+=step){const y=Y(v);ctx.beginPath();ctx.moveTo(m.l,y);ctx.lineTo(m.l+pw,y);ctx.stroke();ctx.fillText(`${v}${kind==="mag"?" dB":"°"}`,6,y+4)}
+  ["#78b7ff","#ffbf69","#77dd77"].forEach((col,idx)=>{ctx.strokeStyle=col;ctx.lineWidth=1.8;ctx.beginPath();const a=arrs[idx];for(let i=0;i<s.fs.length;i++){const x=X(s.fs[i]),y=Y(a[i]);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y)}ctx.stroke()});
+  if(Number.isFinite(cross.f)){const x=X(cross.f);ctx.strokeStyle="#ff6b6b";ctx.setLineDash([5,4]);ctx.beginPath();ctx.moveTo(x,m.t);ctx.lineTo(x,m.t+ph);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle="#ff8f8f";ctx.fillText(`fc≈${fmt(cross.f,0)}Hz`,Math.min(x+5,W-100),m.t+14)}
+}
+function calculate(){
+  const p=params(),warn=[];$("tsDisplay").value=`${fmt(p.Ts*1e6,3)} µs`;
+  const fLC=1/(2*Math.PI*Math.sqrt(p.L*p.C)),fESR=1/(2*Math.PI*p.rC*p.C),G=plantResp(p,p.fc);
+  $("plantMetrics").innerHTML=[metric("Rload",`${fmt(p.R,6)} Ω`),metric("LC resonance",`${fmt(fLC,1)} Hz`),metric("ESR zero",`${fmt(fESR,1)} Hz`),metric("|Gvd(fc)|",`${fmt(20*Math.log10(G.abs()),2)} dB`),metric("∠Gvd(fc)",`${fmt(G.arg()*180/Math.PI,2)}°`),metric("Ts",`${fmt(p.Ts*1e6,3)} µs`)].join("");
+  if(p.fc>p.fs/10)warn.push(`fc=${fmt(p.fc)} Hz 已高於 Fsw/10=${fmt(p.fs/10)} Hz。`);
+  const pid=designPid(p),p2=design2p2z(p),sp=makeSweep(p,pid),s2=makeSweep(p,p2),cp=crossover(sp,p),c2=crossover(s2,p);
+  $("resPid").innerHTML=[metric("Equivalent fz",`${fmt(pid.fz,2)} Hz`),metric("Actual crossover",`${fmt(cp.f,1)} Hz`),metric("Actual PM",`${fmt(cp.pm,2)}°`),metric("Target fc",`${fmt(p.fc,1)} Hz`),metric("Target PM",`${fmt(p.PM,1)}°`),metric("Sampling",`${fmt(p.fs/1000,2)} kHz`)].join("");
+  $("kp").textContent=fmt(pid.Kp,10);$("ki").textContent=fmt(pid.Ki,10);$("kd").textContent=fmt(pid.Kd,12);
+  const err=p.errNorm?"(Vref - Vout) / Vref":"Vref - Vout";
+  $("codePid").textContent=`// PID\n// error = ${err}\n#define PID_KP  ${pid.Kp.toPrecision(10)}\n#define PID_KI  ${pid.Ki.toPrecision(10)}\n#define PID_KD  ${pid.Kd.toPrecision(10)}`;
+  $("res2").innerHTML=[metric("fz1 = fz2",`${fmt(p2.fz,2)} Hz`),metric("fp",`${fmt(p2.fp,2)} Hz`),metric("Actual crossover",`${fmt(c2.f,1)} Hz`),metric("Actual PM",`${fmt(c2.pm,2)}°`),metric("Target fc",`${fmt(p.fc,1)} Hz`),metric("Target PM",`${fmt(p.PM,1)}°`)].join("");
+  $("a1").textContent=fmt(p2.A1,9);$("a2").textContent=fmt(p2.A2,9);$("b0").textContent=fmt(p2.B0,9);$("b1").textContent=fmt(p2.B1,9);$("b2").textContent=fmt(p2.B2,9);$("k2").textContent=fmt(p2.K,9);
+  $("code2").textContent=`// 2P2Z\n// error = ${err}\n#define CTRL_A1  ${p2.A1.toPrecision(10)}\n#define CTRL_A2  ${p2.A2.toPrecision(10)}\n#define CTRL_B0  ${p2.B0.toPrecision(10)}\n#define CTRL_B1  ${p2.B1.toPrecision(10)}\n#define CTRL_B2  ${p2.B2.toPrecision(10)}`;
+  const w=$("warning");if(warn.length){w.style.display="block";w.innerHTML=warn.join("<br>")}else w.style.display="none";
+  draw($("pidMag"),sp,"mag",cp);draw($("pidPhase"),sp,"phase",cp);draw($("p2zMag"),s2,"mag",c2);draw($("p2zPhase"),s2,"phase",c2);
+}
+document.querySelectorAll(".tabbtn").forEach(b=>b.addEventListener("click",()=>{
+  document.querySelectorAll(".tabbtn").forEach(x=>x.classList.remove("active"));document.querySelectorAll(".page").forEach(x=>x.classList.remove("active"));
+  b.classList.add("active");$(b.dataset.page).classList.add("active");setTimeout(calculate,20);
+}));
+$("calc").addEventListener("click",calculate);
+$("reset").addEventListener("click",()=>{
+  const v={vin:60,vout:48,pout:1500,fsw:250,L:10,rL:2.6,C:1000,rC:3,fc:3000,pm:60,fp2p2z:20000,fz2manual:800,fzPidManual:1040};
+  Object.entries(v).forEach(([k,val])=>$(k).value=val);$("errScale").value="raw";$("zMode2").value="auto";$("zModePid").value="auto";calculate();
+});
+["vin","vout","pout","fsw","L","rL","C","rC","fc","pm","fp2p2z","fz2manual","fzPidManual","errScale","zMode2","zModePid"].forEach(id=>$(id).addEventListener("change",calculate));
+window.addEventListener("resize",()=>setTimeout(calculate,10));
+calculate();
+</script>
+</body>
+</html>

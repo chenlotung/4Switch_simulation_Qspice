@@ -1,0 +1,9 @@
+* Infineon OptiMOS MOSFET Library
+* Generated for QSPICE
+* Device: BSC040N10NS5
+
+.model BSC040N10NS5 VDMOS Rs=1.27m Rd=1.27m Rg=1.3 Vto=3.88
++ Kp=166 lambda=71.4m RonX=1.17 eta=75m Vtotc=-2m Is=712p
++ N=1.28197 Rb=909u Eg=1.11 XTI=0.889376 trb1=373u Cgs=4.07n
++ Cgdmin=187p Cgdmax=817p Cjo=3.68n tt=1.8n Tnom=25
++ mfg="Infineon" Vds=100 Ids=136 Ron=3.4m Qg=58n
